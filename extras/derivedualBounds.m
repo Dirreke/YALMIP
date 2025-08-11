@@ -28,13 +28,13 @@ if nargin < 7
     ops = sdpsettings('verbose',0);
 end
 ops2 = ops;
-ops2.verbose = max(0,ops.verbose-1);;
+ops2.verbose = max(0,ops.verbose-1);
 all_bounded = 1;
 if ops.verbose
     disp(['*Computing ' num2str(length(x)) ' primal bounds (required for dual bounds)']);
 end
 
-z = recover(unique([depends(c) depends(b)]));
+z = recover(unique([depends(A) depends(E) depends(c) depends(b)]));
 xz = [x;z];
 nz = length(z);
 nTOT = n + length(z);

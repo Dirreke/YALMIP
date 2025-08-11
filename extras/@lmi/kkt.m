@@ -50,9 +50,6 @@ end
 if isempty(model)
     error('KKT system can only be derived for LPs or QPs');
 end
-if ~ismember(problemclass(model), {'LP', 'Convex QP', 'Nonconvex QP'})
-    error('KKT system can only be derived for LPs or QPs');
-end
 integer_variables = union(yalmip('intvariables'),yalmip('binvariables'));
 if ~isempty(integer_variables)
     decisionvariables = setdiff(model.used_variables, getvariables(parametricVariables));
@@ -64,6 +61,7 @@ end
 if nargin < 3
     x = recover(model.used_variables);
     parameters = [];
+    notparameters = 1:length(model.used_variables);
 else
     % Make sure they are sorted    
     parameters = getvariables(parametricVariables);
@@ -80,6 +78,51 @@ if nargin < 4
 end
 if isempty(ops)
     ops = sdpsettings;
+end
+
+% Number of decision variables
+num_vars = length(model.used_variables);
+
+% Indices of variables involved in constraints
+constraint_vars = find(ismember(model.used_variables, getvariables(F)));
+
+% Indices of nonlinear variables
+nonlinear_vars = find(model.variabletype >= 1);
+
+% Ensure all nonlinear variables are in constraints
+% If not, indicates that the Objective function is not LP/QP
+if ~all(ismember(nonlinear_vars, constraint_vars))
+    error('KKT system can only be derived for LPs or QPs');
+end
+
+% Indices for variables to remove and keep
+vars_to_remove = [parameters, nonlinear_vars];
+vars_to_keep = setdiff(1:num_vars, vars_to_remove);
+
+if ~isempty(vars_to_remove)
+    x = recover(model.used_variables(vars_to_keep));
+    y = recover(model.used_variables(vars_to_remove));
+end
+
+% Construct transfer matrix to handle parameters in A and E
+transfer = zeros(num_vars, 'like', sdpvar);
+transfer = transfer + eye(num_vars);
+if ~isempty(nonlinear_vars)
+    if isempty(parameters)
+        error('KKT system can only be derived for LPs or QPs');
+    end
+    for k = 1:length(nonlinear_vars)
+        idx = find(model.monomtable(nonlinear_vars(k), :));
+        idx_x = idx(ismember(idx, notparameters));
+        idx_param = idx(ismember(idx, parameters));
+        if isscalar(idx_x) && model.monomtable(nonlinear_vars(k), idx_x) == 1
+            coeff = sum(recover(model.used_variables(idx_param))'.^model.monomtable(nonlinear_vars(k), idx_param));
+            transfer(nonlinear_vars(k), idx_x) = coeff;
+        else
+            error('KKT system can only be derived for LPs or QPs');
+        end
+    end
+    transfer(:, nonlinear_vars) = 0;
 end
 
 % Ex==f
@@ -156,18 +199,22 @@ if length(rr)~=size(A,1)
     b = b(rr);
 end
 
-if ~isempty(parameters)
-    b = b-A(:,parameters)*y;
-    f = f-E(:,parameters)*y;
-    A(:,parameters) = [];
-    E(:,parameters) = [];
-    c(parameters) = [];
-    Q2 = model.Q(notparameters,parameters);
+% used x
+used = find(any(A(:,notparameters),2));
+% transfer E and A
+E = E * transfer;
+A = A * transfer;
+if ~isempty(vars_to_remove)
+    b = b-A(:,vars_to_remove)*y;
+    f = f-E(:,vars_to_remove)*y;
+    A(:,vars_to_remove) = [];
+    E(:,vars_to_remove) = [];
+    c(vars_to_remove) = [];
+    Q2 = model.Q(vars_to_keep,vars_to_remove);
     c = c + 2*Q2*y;
-    Q = Q(notparameters,notparameters);
+    Q = Q(vars_to_keep,vars_to_keep);
 end
 
-used = find(any(A,2));
 if isempty(setdiff(1:size(A,1),used))
     parametricDomain = [];
 else
@@ -325,7 +372,3 @@ while top <= length(nel)
     end
     top = top + 1;
 end
-
-
-
-

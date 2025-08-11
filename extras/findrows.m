@@ -23,10 +23,10 @@ if isempty(A)
     return
 end
 
-k = find( A(:,1) == b(1));
+k = find(ismember( A(:,1), b(1)));
 top = size(A, 2);
 for j = 2:top
-    k = k(A(k,j) == b(j));
+    k = k(ismember(A(k,j), b(j)));
     if isempty(k)
         return
     end

@@ -50,6 +50,9 @@ end
 if isempty(model)
     error('KKT system can only be derived for LPs or QPs');
 end
+if ~ismember(problemclass(model), {'LP', 'Convex QP', 'Nonconvex QP'})
+    % error('KKT system can only be derived for LPs or QPs');
+end
 integer_variables = union(yalmip('intvariables'),yalmip('binvariables'));
 if ~isempty(integer_variables)
     decisionvariables = setdiff(model.used_variables, getvariables(parametricVariables));
@@ -105,24 +108,43 @@ if ~isempty(vars_to_remove)
 end
 
 % Construct transfer matrix to handle parameters in A and E
-transfer = zeros(num_vars, 'like', sdpvar);
-transfer = transfer + eye(num_vars);
 if ~isempty(nonlinear_vars)
     if isempty(parameters)
         error('KKT system can only be derived for LPs or QPs');
     end
+    transfer_cell = cell(num_vars);
+    transfer_param = [];
     for k = 1:length(nonlinear_vars)
         idx = find(model.monomtable(nonlinear_vars(k), :));
         idx_x = idx(ismember(idx, notparameters));
         idx_param = idx(ismember(idx, parameters));
         if isscalar(idx_x) && model.monomtable(nonlinear_vars(k), idx_x) == 1
-            coeff = sum(recover(model.used_variables(idx_param))'.^model.monomtable(nonlinear_vars(k), idx_param));
-            transfer(nonlinear_vars(k), idx_x) = coeff;
+            coeff = getvariables(sum(recover(model.used_variables(idx_param))'.^model.monomtable(nonlinear_vars(k), idx_param)));
+            transfer_cell{k,1} = (idx_x-1)*num_vars + nonlinear_vars(k);
+            transfer_cell{k,2} = coeff;
+            transfer_param = [transfer_param,  model.used_variables(idx_param),coeff];
         else
             error('KKT system can only be derived for LPs or QPs');
         end
     end
-    transfer(:, nonlinear_vars) = 0;
+    transfer_param = sort(unique(transfer_param));
+    transfer = zeros(num_vars, 'like', sdpvar);
+    transfer_s = struct(transfer);
+    transfer_s.basis=sparse(num_vars*num_vars,length(transfer_param)+1);
+    transfer_s.lmi_variables = transfer_param;
+
+    for k = 1:length(transfer_cell)
+        coeff = find(ismember(transfer_param, transfer_cell{k,2}));
+        transfer_s.basis(transfer_cell{k,1},coeff+1) = 1;
+    end
+    
+    transfer = sdpvar(transfer_s);
+    transfer_E = eye(num_vars);
+    transfer_E(:, nonlinear_vars) = 0;
+    transfer = transfer + transfer_E;
+else
+    transfer = zeros(num_vars, 'like', sdpvar);
+    transfer = transfer + eye(num_vars);
 end
 
 % Ex==f

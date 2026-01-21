@@ -404,6 +404,9 @@ for i = 1:length(cNames)
     temporaryOptions = getfield(options,cNames{i});
     if isa(temporaryOptions,'struct')
         cNames = [cNames;recursivefieldnames(temporaryOptions,[cNames{i}])];
+    elseif isa(temporaryOptions,'optim.options.MultiAlgorithm')
+        temporaryOptions = cell2struct( cellfun(@(x) getfield(temporaryOptions,x), properties(temporaryOptions),'UniformOutput', false), properties(temporaryOptions), 1);
+        cNames = [cNames; recursivefieldnames(temporaryOptions,[cNames{i}])];
     end
 end
 for i = 1:length(cNames)
@@ -771,6 +774,7 @@ gurobi.BQPCuts = -1;
 gurobi.BranchDir = 0;
 gurobi.CliqueCuts = -1;
 gurobi.ConcurrentJobs = 0;
+gurobi.ConcurrentMethod = -1;
 gurobi.ConcurrentMIP = 1;
 gurobi.CoverCuts =-1;
 gurobi.Crossover = -1;

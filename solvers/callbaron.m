@@ -154,7 +154,13 @@ if pos
         j2 = find(model.linearindicies == map.variableIndex(2));        
         xs = ['x(' num2str(j1) ')'];
         ys = ['x(' num2str(j2) ')'];
-        z =  ['(' xs '*exp(' ys '/' xs '))']
+        z =  ['(' xs '*exp(' ys '/' xs '))'];
+elseif strcmp(model.evalMap{pos}.fcn,'plog')                        
+        j1 = find(model.linearindicies == map.variableIndex(1));
+        j2 = find(model.linearindicies == map.variableIndex(2));        
+        xs = ['x(' num2str(j1) ')'];
+        ys = ['x(' num2str(j2) ')'];
+        z =  ['(' xs '*log(' ys '/' xs '))']                    
     elseif strcmp(model.evalMap{pos}.fcn,'slogfrac')                        
         j1 = find(model.linearindicies == map.variableIndex(1));
         j2 = find(model.linearindicies == map.variableIndex(2));        
@@ -168,6 +174,29 @@ if pos
             else
                 z =  [z '-x(' num2str(jl) ')*log(x(' num2str(jl) '))+'];
             end 
+        end
+        z = [z(1:end-1) ')'];        
+   elseif strcmp(model.evalMap{pos}.fcn,'kullbackleibler')
+        z = ['('];   
+        n = length(map.variableIndex)/2;
+        for k = 1:n
+            j1 = map.variableIndex(k);
+            j2 = map.variableIndex(k + n);
+            jx = find(model.linearindicies == j1);
+            jy = find(model.linearindicies == j2);                        
+           z =  [z '-x(' num2str(jx) ')*log(x(' num2str(jy) '))'];           
+           z =  [z '+x(' num2str(jx) ')*log(x(' num2str(jx) '))+'];                       
+        end
+        z = [z(1:end-1) ')'];
+elseif strcmp(model.evalMap{pos}.fcn,'crossentropy_internal')
+        z = ['('];   
+        n = length(map.variableIndex)/2;
+        for k = 1:n
+            j1 = map.variableIndex(k);
+            j2 = map.variableIndex(k + n);
+            jx = find(model.linearindicies == j1);
+            jy = find(model.linearindicies == j2);                        
+           z =  [z '-x(' num2str(jx) ')*log(x(' num2str(jy) '))+'];                      
         end
         z = [z(1:end-1) ')'];        
     elseif strcmp(model.evalMap{pos}.fcn,'logsumexp')
